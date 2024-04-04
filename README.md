@@ -1,4 +1,4 @@
-##instructions:
+## instructions:
 1. uploading the docker-compse:
     docker-compose up
 2. entering the postgres server using another container:
