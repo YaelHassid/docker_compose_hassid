@@ -10,7 +10,7 @@ services:
       - '5555:5555'
     env_file: ./.env
  
-  postgress_server:
+  postgres_teams:
     image: postgres:14.1-alpine
     restart: always
     env_file: ./.env
