@@ -3,7 +3,12 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import joblib
 import sklearn
-import pandas
+import pandas as pd
+
+from flask_wtf import FlaskForm
+from wtforms import StringField, FloatField, SelectField, SubmitField
+from wtforms.validators import DataRequired
+from flask import render_template
 
 db_username = os.environ['DB_USERNAME']
 db_password = os.environ['DB_PASSWORD']
@@ -29,31 +34,67 @@ class Team(db.Model):
     g = db.Column(db.Float, nullable=False)
     oobp = db.Column(db.Float, nullable=False)
     oslg = db.Column(db.Float, nullable=False)
+    prediction = db.Column(db.Float, nullable=False)
+
+
+class AddTeamForm(FlaskForm):
+    year = StringField('Year', validators=[DataRequired()])
+    league = SelectField('League', choices=[('AL', 'AL'), ('NL', 'NL')], validators=[DataRequired()])
+    obp = FloatField('OBP', validators=[DataRequired()])
+    slg = FloatField('SLG', validators=[DataRequired()])
+    ba = FloatField('BA', validators=[DataRequired()])
+    playoffs = StringField('Playoffs', validators=[DataRequired()])
+    g = FloatField('G', validators=[DataRequired()])
+    oobp = FloatField('OOBP', validators=[DataRequired()])
+    oslg = FloatField('OSLG', validators=[DataRequired()])
+    submit = SubmitField('Add Team')
+
 
 @app.route("/")
 def home():
     return "Hello from my Containerized Server"
 
-@app.route('/teams', methods=['POST'])
+@app.route('/add_team',  methods=['GET', 'POST'])
 def add_team():
-    try:
-        request_data = request.get_json()
+    if request.method == 'POST':
+        # Get data from the form
+        year = request.form['year']
+        league = request.form['league']
+        obp = float(request.form['obp'])
+        slg = float(request.form['slg'])
+        ba = float(request.form['ba'])
+        playoffs = request.form['playoffs']
+        g = float(request.form['g'])
+        oobp = float(request.form['oobp'])
+        oslg = float(request.form['oslg'])
+
+        data = {'year': [year], 'league': [league], 'obp': [obp], 'slg': [slg], 'ba': [ba],
+                'playoffs': [playoffs], 'g': [g], 'oobp': [oobp], 'oslg': [oslg]}
+        df = pd.DataFrame(data)
+        model = joblib.load('model.sav')
+
+        pred = model.predict(df)
+
+
         new_team = Team(
-            year=request_data['year'],
-            league=request_data['league'],
-            obp=float(request_data['obp']),
-            slg=float(request_data['slg']),
-            ba=float(request_data['ba']),
-            playoffs=request_data['playoffs'],
-            g=float(request_data['g']),
-            oobp=float(request_data['oobp']),
-            oslg=float(request_data['oslg'])
+            year=year,
+            league=league,
+            obp=obp,
+            slg=slg,
+            ba=ba,
+            playoffs=playoffs,
+            g=g,
+            oobp=oobp,
+            oslg=oslg,
+            prediction=pred[0]  # You can update this with the actual prediction
         )
+
         db.session.add(new_team)
         db.session.commit()
         return "Team added successfully", 201
-    except Exception as e:
-        return str(e), 400
+
+    else:
+        return render_template('add_team.html')
 
 @app.route('/teams')
 def show_teams():
@@ -67,11 +108,12 @@ def show_teams():
         'playoffs': team.playoffs,
         'g': team.g,
         'oobp': team.oobp,
-        'oslg': team.oslg
+        'oslg': team.oslg,
+        'prediction': team.prediction
     } for team in teams}
-    filename = 'model.sav'
-    load_model = joblib.load(open(filename, 'rb'))
-    #y_pred = load_model.predict(team_list)
+
     return jsonify(team_list)
+
+
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5555)
